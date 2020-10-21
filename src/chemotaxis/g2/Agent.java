@@ -10,9 +10,12 @@ import chemotaxis.sim.ChemicalCell;
 import chemotaxis.sim.Move;
 import chemotaxis.sim.SimPrinter;
 
+import java.util.Random;
+
 public class Agent extends chemotaxis.sim.Agent {
 
     private final double COLOR_THRESHOLD = 1.0;
+    private final int RANDOM_CUTOFF = 5;
     /**
      * Agent constructor
      *
@@ -41,9 +44,22 @@ public class Agent extends chemotaxis.sim.Agent {
         DirectionType prevDir = prevDirs[0];
         DirectionType prevOrthDir = prevDirs[1];
 
+        boolean onOurOwn = getChemicalStatus(previousState);
+
         if (possibleDirections.size() == 1) {
-            return buildMove(possibleDirections.get(0), previousState);
+            return buildMove(possibleDirections.get(0), previousState, onOurOwn);
         }
+
+        Random rand = new Random();
+        //choose random direction and orientation
+        //to do: random orientation
+        if(onOurOwn && rand.nextInt(100) < RANDOM_CUTOFF) {
+            int ranIndex = rand.nextInt(possibleDirections.size());
+            DirectionType randomDir = possibleDirections.get(ranIndex);
+            return buildMove(randomDir, previousState, true);
+            //prevDir = 
+        }
+
         // a color is only counter if it is above or equal to the COLOR_THRESHOLD
         Map<DirectionType, ArrayList<ChemicalCell.ChemicalType>> colorsMap = filterColorMap(neighborMap);
         if (colorsMap.size() == 0) {
@@ -70,7 +86,14 @@ public class Agent extends chemotaxis.sim.Agent {
         // Right now we only expect red to be given
         // TODO: handle cases of colors other than RED being given
 
-        return buildMove(cellEntry.getKey(), previousState);
+        //blue indicates no more chemicals yet, introduce randomness
+        ChemicalCell.ChemicalType color = cellEntry.getValue().get(0);
+        if(color == ChemicalCell.ChemicalType.BLUE) {
+            return buildMove(cellEntry.getKey(), previousState, true);
+        }
+        else {
+            return buildMove(cellEntry.getKey(), previousState, false);
+        }
     }
 
     // TODO: adjust to check for zig zag state
@@ -82,20 +105,20 @@ public class Agent extends chemotaxis.sim.Agent {
 
         // default behavior
         if (possibleDirections.contains(prevDir)) {
-            return buildMove(prevDir, previousState);
+            return buildMove(prevDir, previousState, false);
         }
 
         if (possibleDirections.contains(prevOrthDir)) {
-            return buildMove(prevOrthDir, previousState);
+            return buildMove(prevOrthDir, previousState, false);
         }
 
         DirectionType oppOfPrevOrthDir = getOppositeDirection(prevOrthDir);
         if (possibleDirections.contains(oppOfPrevOrthDir)) {
-            return buildMove(oppOfPrevOrthDir, previousState);
+            return buildMove(oppOfPrevOrthDir, previousState, false);
         }
 
         simPrinter.println("Error in noColorDirection => agent is repeating points!");
-        return buildMove(getOppositeDirection(prevDir), previousState);
+        return buildMove(getOppositeDirection(prevDir), previousState, false);
     }
 
     private Map<DirectionType, ArrayList<ChemicalCell.ChemicalType>> filterColorMap(
@@ -119,12 +142,12 @@ public class Agent extends chemotaxis.sim.Agent {
     }
 
     // TODO: adjust to take into account not changing previousState
-    private Move buildMove(DirectionType dir, Byte previousState) {
+    private Move buildMove(DirectionType dir, Byte previousState, boolean onOurOwn) {
         Move move = new Move();
         move.directionType = dir;
 
         // can add more changes to the state byte here
-        Byte newState = updatePrevDirBits(previousState, dir);
+        Byte newState = updatePrevDirBits(previousState, dir, onOurOwn);
 
         move.currentState = newState;
         simPrinter.println("AGENT IS GOING " + dir.toString());
@@ -159,7 +182,7 @@ public class Agent extends chemotaxis.sim.Agent {
         return chemicalDirs;
     }
 
-    private Byte updatePrevDirBits(Byte previousState, DirectionType dir) {
+    private Byte updatePrevDirBits(Byte previousState, DirectionType dir, boolean onOurOwn) {
         byte b = previousState.byteValue();
         String prevStateStr = String.format("%8s", Integer.toBinaryString(b & 0xFF))
                 .replace(' ', '0');
@@ -173,6 +196,11 @@ public class Agent extends chemotaxis.sim.Agent {
             prevStateChars[5] = '1';
             prevStateChars[7] = dirToEWChar(dir);
         }
+
+        if(onOurOwn) {
+            prevStateChars[4] = '1';
+        }
+
         String newStateStr = String.valueOf(prevStateChars);
         return Byte.parseByte(newStateStr, 2);
     }
@@ -204,6 +232,19 @@ public class Agent extends chemotaxis.sim.Agent {
             prevDirs[1] = charToNSDir(prevStateStr.charAt(6));
         }
         return prevDirs;
+    }
+
+    private boolean getChemicalStatus(Byte previousState) {
+        byte b = previousState.byteValue();
+        String prevStateStr = String.format("%8s", Integer.toBinaryString(b & 0xFF))
+                .replace(' ', '0');
+
+        if(prevStateStr.charAt(4) == '0') {
+            return false;
+        }
+        else {
+            return true;
+        }
     }
 
     DirectionType charToNSDir(char c) {

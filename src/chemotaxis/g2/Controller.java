@@ -69,7 +69,13 @@ public class Controller extends chemotaxis.sim.Controller {
             MoveType nextMove = moveEntry.getValue();
             DirectionType direction = moveToDirectionType(nextMove);
             cp.location = adjPoint(movePoint, direction);
-            cp.chemicals.add(ChemicalCell.ChemicalType.RED);
+
+            if(chemicalsRemaining == 1 && movesQueue.size() > 1) {
+                cp.chemicals.add(ChemicalCell.ChemicalType.BLUE);
+            }
+            else {
+                cp.chemicals.add(ChemicalCell.ChemicalType.RED);
+            }
             movesQueue.poll();
         }
         return cp;
